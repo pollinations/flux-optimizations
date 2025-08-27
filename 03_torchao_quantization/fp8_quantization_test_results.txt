@@ -1,0 +1,11 @@
+TorchAO FP8 Weight-Only Quantization Test Results
+==================================================
+GPU: NVIDIA H100 PCIe
+Compute Capability: (9, 0)
+Model Parameters: 152.2M
+Baseline Time: 0.0053s
+Quantized Time: 0.0050s
+Speedup: 1.05x (5.1% faster)
+Memory Reduction: 39.0%
+Output Accuracy: MAE = 0.020630
+Target Achieved: No

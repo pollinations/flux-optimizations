@@ -1,0 +1,26 @@
+[
+  {
+    "config": "Single 512px",
+    "batch_size": 1,
+    "image_size": 512,
+    "eager_time": 0.04846196174621582,
+    "compiled_time": 0.031080150604248048,
+    "speedup": 1.5592576227604258
+  },
+  {
+    "config": "Batch 2 512px",
+    "batch_size": 2,
+    "image_size": 512,
+    "eager_time": 0.0025740146636962892,
+    "compiled_time": 0.05263786315917969,
+    "speedup": 0.048900439896511994
+  },
+  {
+    "config": "Single 1024px",
+    "batch_size": 1,
+    "image_size": 1024,
+    "eager_time": 0.0040146827697753905,
+    "compiled_time": 0.056311178207397464,
+    "speedup": 0.0712945972287966
+  }
+]

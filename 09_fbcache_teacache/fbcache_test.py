@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""
+First Block Cache (FBCache) Test Script for FLUX Schnell
+Tests FBCache with different threshold values and benchmarks performance.
+"""
+
+import torch
+import time
+import json
+import os
+from pathlib import Path
+from diffusers import FluxPipeline
+from para_attn.first_block_cache.diffusers_adapters import apply_cache_on_pipe
+
+# Configuration
+MODEL_ID = "black-forest-labs/FLUX.1-schnell"
+DEVICE = "cuda"
+DTYPE = torch.bfloat16
+OUTPUT_DIR = Path("outputs/fbcache")
+BENCHMARK_FILE = "fbcache_benchmark.json"
+
+# Test configurations
+TEST_PROMPTS = [
+    "A red apple on a white table",
+    "A futuristic cityscape at sunset with flying cars and neon lights",
+    "A photorealistic portrait of an elderly man with weathered hands holding a vintage camera"
+]
+
+FBCACHE_THRESHOLDS = [0.0, 0.05, 0.1, 0.12, 0.15, 0.2]
+NUM_INFERENCE_STEPS = 4  # FLUX Schnell default
+IMAGE_SIZE = 1024
+NUM_WARMUP_RUNS = 2
+NUM_BENCHMARK_RUNS = 3
+
+def setup_pipeline():
+    """Initialize FLUX pipeline with optimizations."""
+    print("Loading FLUX.1-schnell pipeline...")
+    
+    pipe = FluxPipeline.from_pretrained(
+        MODEL_ID,
+        torch_dtype=DTYPE,
+    ).to(DEVICE)
+    
+    # Enable memory efficient attention
+    pipe.enable_model_cpu_offload()
+    
+    return pipe
+
+def benchmark_baseline(pipe, prompt):
+    """Benchmark baseline performance without caching."""
+    print(f"Benchmarking baseline for: '{prompt[:50]}...'")
+    
+    # Warmup runs
+    for i in range(NUM_WARMUP_RUNS):
+        _ = pipe(
+            prompt,
+            num_inference_steps=NUM_INFERENCE_STEPS,
+            height=IMAGE_SIZE,
+            width=IMAGE_SIZE,
+        ).images[0]
+    
+    # Benchmark runs
+    times = []
+    for i in range(NUM_BENCHMARK_RUNS):
+        torch.cuda.synchronize()
+        start_time = time.time()
+        
+        image = pipe(
+            prompt,
+            num_inference_steps=NUM_INFERENCE_STEPS,
+            height=IMAGE_SIZE,
+            width=IMAGE_SIZE,
+        ).images[0]
+        
+        torch.cuda.synchronize()
+        end_time = time.time()
+        
+        inference_time = end_time - start_time
+        times.append(inference_time)
+        print(f"  Run {i+1}: {inference_time:.3f}s")
+    
+    avg_time = sum(times) / len(times)
+    print(f"  Average: {avg_time:.3f}s")
+    
+    return {
+        "times": times,
+        "avg_time": avg_time,
+        "image": image
+    }
+
+def benchmark_fbcache(pipe, prompt, threshold):
+    """Benchmark FBCache performance with given threshold."""
+    print(f"Benchmarking FBCache (threshold={threshold}) for: '{prompt[:50]}...'")
+    
+    # Apply FBCache with specified threshold
+    apply_cache_on_pipe(pipe, residual_diff_threshold=threshold)
+    
+    # Warmup runs
+    for i in range(NUM_WARMUP_RUNS):
+        _ = pipe(
+            prompt,
+            num_inference_steps=NUM_INFERENCE_STEPS,
+            height=IMAGE_SIZE,
+            width=IMAGE_SIZE,
+        ).images[0]
+    
+    # Benchmark runs
+    times = []
+    for i in range(NUM_BENCHMARK_RUNS):
+        torch.cuda.synchronize()
+        start_time = time.time()
+        
+        image = pipe(
+            prompt,
+            num_inference_steps=NUM_INFERENCE_STEPS,
+            height=IMAGE_SIZE,
+            width=IMAGE_SIZE,
+        ).images[0]
+        
+        torch.cuda.synchronize()
+        end_time = time.time()
+        
+        inference_time = end_time - start_time
+        times.append(inference_time)
+        print(f"  Run {i+1}: {inference_time:.3f}s")
+    
+    avg_time = sum(times) / len(times)
+    print(f"  Average: {avg_time:.3f}s")
+    
+    return {
+        "threshold": threshold,
+        "times": times,
+        "avg_time": avg_time,
+        "image": image
+    }
+
+def save_results(results, output_file):
+    """Save benchmark results to JSON file."""
+    # Convert images to None for JSON serialization
+    json_results = {}
+    for prompt, prompt_results in results.items():
+        json_results[prompt] = {}
+        for config, data in prompt_results.items():
+            json_data = data.copy()
+            if 'image' in json_data:
+                del json_data['image']  # Remove image for JSON
+            json_results[prompt][config] = json_data
+    
+    with open(output_file, 'w') as f:
+        json.dump(json_results, f, indent=2)
+    
+    print(f"Results saved to {output_file}")
+
+def save_images(results, output_dir):
+    """Save generated images for quality comparison."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    for prompt_idx, (prompt, prompt_results) in enumerate(results.items()):
+        prompt_name = f"prompt_{prompt_idx+1}"
+        
+        for config, data in prompt_results.items():
+            if 'image' in data and data['image'] is not None:
+                if config == 'baseline':
+                    filename = f"{prompt_name}_baseline.png"
+                else:
+                    threshold = data['threshold']
+                    filename = f"{prompt_name}_fbcache_{threshold}.png"
+                
+                filepath = output_dir / filename
+                data['image'].save(filepath)
+                print(f"Saved: {filepath}")
+
+def print_summary(results):
+    """Print performance summary."""
+    print("\n" + "="*80)
+    print("FBCACHE PERFORMANCE SUMMARY")
+    print("="*80)
+    
+    for prompt_idx, (prompt, prompt_results) in enumerate(results.items()):
+        print(f"\nPrompt {prompt_idx+1}: {prompt[:60]}...")
+        print("-" * 70)
+        
+        baseline_time = prompt_results['baseline']['avg_time']
+        print(f"{'Configuration':<20} {'Avg Time (s)':<15} {'Speedup':<10} {'Threshold':<10}")
+        print("-" * 70)
+        print(f"{'Baseline':<20} {baseline_time:<15.3f} {'1.00x':<10} {'-':<10}")
+        
+        for config, data in prompt_results.items():
+            if config != 'baseline':
+                avg_time = data['avg_time']
+                speedup = baseline_time / avg_time
+                threshold = data['threshold']
+                print(f"{'FBCache':<20} {avg_time:<15.3f} {speedup:<10.2f}x {threshold:<10}")
+
+def main():
+    """Main execution function."""
+    print("Starting FBCache optimization test for FLUX Schnell")
+    print(f"Device: {DEVICE}")
+    print(f"Model: {MODEL_ID}")
+    print(f"Test thresholds: {FBCACHE_THRESHOLDS}")
+    
+    # Setup
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    pipe = setup_pipeline()
+    
+    # Results storage
+    results = {}
+    
+    # Test each prompt
+    for prompt in TEST_PROMPTS:
+        print(f"\n{'='*60}")
+        print(f"Testing prompt: {prompt}")
+        print('='*60)
+        
+        results[prompt] = {}
+        
+        # Baseline test
+        baseline_result = benchmark_baseline(pipe, prompt)
+        results[prompt]['baseline'] = baseline_result
+        
+        # FBCache tests with different thresholds
+        for threshold in FBCACHE_THRESHOLDS:
+            # Reload pipeline to reset cache state
+            pipe = setup_pipeline()
+            
+            fbcache_result = benchmark_fbcache(pipe, prompt, threshold)
+            results[prompt][f'fbcache_{threshold}'] = fbcache_result
+    
+    # Save results
+    save_results(results, BENCHMARK_FILE)
+    save_images(results, OUTPUT_DIR)
+    
+    # Print summary
+    print_summary(results)
+    
+    print(f"\nTest completed! Check {OUTPUT_DIR} for generated images.")
+    print(f"Benchmark data saved to {BENCHMARK_FILE}")
+
+if __name__ == "__main__":
+    main()

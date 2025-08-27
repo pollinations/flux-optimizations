@@ -1,0 +1,11 @@
+torch>=2.0.0
+torchvision
+torchaudio
+xfuser
+diffusers>=0.30.0
+transformers>=4.40.0
+accelerate>=0.30.0
+huggingface_hub>=0.23.0
+Pillow>=10.0.0
+safetensors>=0.4.0
+numpy>=1.24.0
