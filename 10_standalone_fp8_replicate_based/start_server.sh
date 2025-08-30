@@ -30,13 +30,21 @@ echo "Service Type: $SERVICE_TYPE"
 echo "Tunnel Host: $TUNNEL_HOST"
 
 # Kill any existing SSH tunnels
-pkill -f "ssh.*$TUNNEL_HOST"
+# pkill -f "ssh.*$TUNNEL_HOST"
 
-# Start SSH tunnel in background
-echo "Setting up SSH tunnel to $TUNNEL_HOST:$PORT..."
-ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" -R 0.0.0.0:$PORT:localhost:$PORT -N ubuntu@$TUNNEL_HOST &
+# Start detached SSH tunnel using nohup for complete terminal independence
+echo "Setting up detached SSH tunnel to $TUNNEL_HOST:$PORT..."
+nohup ssh -o StrictHostKeyChecking=no \
+    -o ServerAliveInterval=30 \
+    -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes \
+    -o TCPKeepAlive=yes \
+    -f \
+    -i "$SSH_KEY" \
+    -R 0.0.0.0:$PORT:localhost:$PORT \
+    -N ubuntu@$TUNNEL_HOST > /tmp/ssh_tunnel_$PORT.log 2>&1 &
 SSH_PID=$!
-echo "SSH tunnel started with PID: $SSH_PID"
+echo "Detached SSH tunnel started with PID: $SSH_PID (log: /tmp/ssh_tunnel_$PORT.log)"
 
 # Wait a moment for tunnel to establish
 sleep 3
