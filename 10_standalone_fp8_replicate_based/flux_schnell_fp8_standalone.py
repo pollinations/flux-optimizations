@@ -5,8 +5,6 @@ Runs Flux Schnell with FP8 quantization optimizations without Cog dependency
 """
 
 import os
-# Force single GPU usage before any CUDA initialization
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import argparse
 import time
@@ -18,8 +16,6 @@ import requests
 from tqdm import tqdm
 
 import torch
-# Set default device to cuda:0 after restricting visibility
-torch.cuda.set_device(0)
 import numpy as np
 from PIL import Image
 from safetensors.torch import load_file as load_sft
@@ -139,12 +135,17 @@ def download_models() -> None:
 class FluxSchnellFP8:
     """Standalone Flux Schnell FP8 implementation"""
     
-    def __init__(self, device: str = "cuda", compile_model: bool = False):
+    def __init__(self, device: str = "cuda", gpu_id: int = 0, compile_model: bool = False):
         self.device = device
+        self.gpu_id = gpu_id
+        self.cuda_device = f"cuda:{gpu_id}" if device == "cuda" else device
         self.compile_model = compile_model
         self.pipeline = None
         
-        # Set torch optimizations
+        # Set GPU and torch optimizations
+        if device == "cuda" and torch.cuda.is_available():
+            torch.cuda.set_device(gpu_id)
+            
         torch.set_float32_matmul_precision("high")
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
@@ -172,16 +173,16 @@ class FluxSchnellFP8:
         # Disable T5 quantization to avoid inference tensor issues
         config.text_enc_quantization_dtype = None
         
-        # Ensure all models are on the same device (force cuda:0)
-        config.text_enc_device = "cuda:0"
-        config.ae_device = "cuda:0"
-        config.flux_device = "cuda:0"
+        # Ensure all models are on the same device
+        config.text_enc_device = self.cuda_device
+        config.ae_device = self.cuda_device
+        config.flux_device = self.cuda_device
         
         # Load models from config
         loaded_models = load_models_from_config(config)
         
-        # Create pipeline with explicit single GPU device assignment
-        with torch.cuda.device(0):
+        # Create pipeline with explicit GPU device assignment
+        with torch.cuda.device(self.gpu_id):
             self.pipeline = FluxPipeline(
                 name="flux-schnell-fp8",
                 offload=False,  # Keep models in VRAM for better performance
@@ -191,11 +192,11 @@ class FluxSchnellFP8:
                 ae=loaded_models.ae,
                 dtype=torch.bfloat16,
                 config=config,
-                # Force all models to use the same GPU
-                flux_device="cuda:0",
-                ae_device="cuda:0",
-                clip_device="cuda:0", 
-                t5_device="cuda:0",
+                # Force all models to use the specified GPU
+                flux_device=self.cuda_device,
+                ae_device=self.cuda_device,
+                clip_device=self.cuda_device, 
+                t5_device=self.cuda_device,
             )
         
         print("✅ Models loaded successfully!")
@@ -224,7 +225,7 @@ class FluxSchnellFP8:
         start_time = time.time()
         
         # Generate images
-        images = self.pipeline.generate(
+        pil_images, np_images = self.pipeline.generate(
             prompt=prompt,
             width=width,
             height=height,
@@ -233,6 +234,9 @@ class FluxSchnellFP8:
             seed=seed,
             num_images=num_images,
         )
+        
+        # Use only PIL images
+        images = pil_images
         
         end_time = time.time()
         print(f"⚡ Generation completed in {end_time - start_time:.2f}s")
@@ -278,6 +282,7 @@ def main():
     parser.add_argument("--download-models", action="store_true", help="Download models and exit")
     parser.add_argument("--no-compile", action="store_true", help="Disable torch.compile for faster startup")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use (default: cuda)")
+    parser.add_argument("--gpu", type=int, default=0, help="GPU ID to use (default: 0)")
     
     args = parser.parse_args()
     
@@ -285,6 +290,10 @@ def main():
     if args.device == "cuda" and not torch.cuda.is_available():
         print("❌ CUDA not available, falling back to CPU")
         args.device = "cpu"
+    elif args.device == "cuda" and args.gpu >= torch.cuda.device_count():
+        print(f"❌ GPU {args.gpu} not available, only {torch.cuda.device_count()} GPUs found")
+        print(f"   Using GPU 0 instead")
+        args.gpu = 0
     
     # Download models if requested
     if args.download_models:
@@ -313,7 +322,7 @@ def main():
         args.width, args.height = ASPECT_RATIOS[args.aspect_ratio]
     
     # Initialize and run generator
-    generator = FluxSchnellFP8(device=args.device, compile_model=not args.no_compile)
+    generator = FluxSchnellFP8(device=args.device, gpu_id=args.gpu, compile_model=not args.no_compile)
     
     try:
         generator.load_models()
