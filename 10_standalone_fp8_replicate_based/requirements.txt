@@ -1,0 +1,47 @@
+# Core PyTorch and CUDA dependencies
+torch==2.7.0
+torchvision==0.23.0
+torchaudio==2.5.1+cu121
+triton==3.3.0
+
+# NVIDIA CUDA libraries
+nvidia-cublas-cu12==12.6.4.1
+nvidia-cuda-cupti-cu12==12.6.80
+nvidia-cuda-nvrtc-cu12==12.6.77
+nvidia-cuda-runtime-cu12==12.6.77
+nvidia-cudnn-cu12==9.5.1.17
+nvidia-cufft-cu12==11.3.0.4
+nvidia-curand-cu12==10.3.7.77
+nvidia-cusolver-cu12==11.7.1.2
+nvidia-cusparse-cu12==12.5.4.2
+nvidia-nccl-cu12==2.26.2
+nvidia-nvjitlink-cu12==12.6.85
+nvidia-nvtx-cu12==12.6.77
+
+# ML and AI libraries
+transformers==4.43.3
+diffusers==0.32.2
+huggingface-hub==0.25.0
+tokenizers==0.19.1
+safetensors==0.4.3
+accelerate==1.10.1
+
+# Quantization and optimization
+torchao==0.12.0
+quanto==0.2.0
+
+# Image processing
+pillow==11.0.0
+opencv-python-headless==4.10.0.84
+
+# Numerical computing
+numpy==1.26.4
+einops==0.8.0
+
+# Utilities
+tqdm==4.67.1
+requests==2.25.1
+pydantic==2.11.7
+pydantic_core==2.33.2
+regex==2025.7.34
+sentencepiece==0.2.0
