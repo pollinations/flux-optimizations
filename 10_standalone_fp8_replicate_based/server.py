@@ -24,8 +24,8 @@ import torch
 import numpy as np
 from PIL import Image
 
-# Add the cog-flux-fresh directory to Python path for imports
-sys.path.insert(0, '/home/ionet_baremetal/cog-flux-fresh')
+# Add current directory to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import our Flux Schnell FP8 implementation
 from flux_schnell_fp8_standalone import FluxSchnellFP8

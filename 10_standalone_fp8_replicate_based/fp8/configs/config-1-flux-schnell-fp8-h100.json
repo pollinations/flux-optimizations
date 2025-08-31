@@ -41,7 +41,7 @@
   "repo_flow": "n/a",
   "repo_ae": "n/a",
   "text_enc_max_length": 256,
-  "text_enc_path": "./model-cache/t5",
+  "text_enc_path": "./model-cache/t5/tokenizer",
   "text_enc_device": "cuda:0",
   "ae_device": "cuda:0",
   "flux_device": "cuda:0",

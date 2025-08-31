@@ -7,7 +7,7 @@
 if [ $# -ge 1 ]; then
     PORT_ARG=$1
 else
-    PORT_ARG=${PORT:-8765}
+    PORT_ARG=${PORT:-14400}
 fi
 
 if [ $# -ge 2 ]; then

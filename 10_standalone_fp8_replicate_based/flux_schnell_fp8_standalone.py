@@ -20,8 +20,8 @@ import numpy as np
 from PIL import Image
 from safetensors.torch import load_file as load_sft
 
-# Add the cog-flux-fresh directory to Python path for imports
-sys.path.insert(0, '/home/ionet_baremetal/cog-flux-fresh')
+# Add the current directory to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fp8.flux_pipeline import FluxPipeline
 from fp8.util import (
@@ -30,8 +30,8 @@ from fp8.util import (
     load_config_from_path,
     load_models_from_config,
 )
-from flux.modules.conditioner import HFEmbedder
-from flux.util import load_ae, load_clip, load_t5
+from fp8.modules.conditioner import HFEmbedder
+from fp8.util import load_autoencoder, load_text_encoders
 
 # Model URLs from Replicate
 MODEL_URLS = {
@@ -156,7 +156,7 @@ class FluxSchnellFP8:
         print("🔄 Loading models...")
         
         # Load config for Flux Schnell FP8
-        config_path = "/home/ionet_baremetal/cog-flux-fresh/fp8/configs/config-1-flux-schnell-fp8-h100.json"
+        config_path = os.path.join(os.path.dirname(__file__), "fp8/configs/config-1-flux-schnell-fp8-h100.json")
         config = load_config_from_path(config_path)
         
         # Update paths to use our cache locations
