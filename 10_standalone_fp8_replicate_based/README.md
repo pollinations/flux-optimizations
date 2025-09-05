@@ -26,9 +26,34 @@ This approach provides a standalone Flux Schnell FP8 implementation based on Rep
 
 ## Installation
 
+### Automated Setup (Recommended)
+
 ```bash
+# One-line setup for new instances
+curl -sSL https://raw.githubusercontent.com/pollinations/flux-optimizations/main/10_standalone_fp8_replicate_based/setup_instance.sh | bash
+```
+
+Or if you already have the repository:
+
+```bash
+# Run the setup script
+./setup_instance.sh
+```
+
+### Manual Installation
+
+```bash
+# Install system dependencies
+sudo apt update
+sudo apt install -y python3-pip python3.12-venv
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
 # Install dependencies
 pip install -r requirements.txt
+pip install pybase64 loguru
 
 # The script will automatically download models on first run
 ```
