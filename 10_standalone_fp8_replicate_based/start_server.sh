@@ -21,7 +21,7 @@ export PORT=$PORT_ARG
 export GPU_ID=$GPU_ARG
 export SERVICE_TYPE=${SERVICE_TYPE:-flux}
 export TUNNEL_HOST=${TUNNEL_HOST:-163.172.149.24}
-export SSH_KEY=${SSH_KEY:-/home/ionet_baremetal/thomashkey}
+export SSH_KEY=${SSH_KEY:-$HOME/.ssh/thomashkey}
 
 echo "Starting Flux Schnell FP8 server with SSH tunnel..."
 echo "Port: $PORT"

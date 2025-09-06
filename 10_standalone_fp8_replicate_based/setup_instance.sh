@@ -18,7 +18,7 @@ fi
 # Update system packages
 echo "📦 Updating system packages..."
 sudo apt update
-sudo apt install -y python3-pip python3.12-venv git
+sudo apt install -y python3-pip python3.12-venv git screen
 
 # Create virtual environment
 echo "🐍 Setting up Python virtual environment..."

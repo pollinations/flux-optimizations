@@ -13,7 +13,7 @@ fi
 
 # Configuration
 TUNNEL_HOST=${TUNNEL_HOST:-163.172.149.24}
-SSH_KEY=${SSH_KEY:-/home/ionet_baremetal/thomashkey}
+SSH_KEY=${SSH_KEY:-$HOME/.ssh/thomashkey}
 SERVICE_TYPE=${SERVICE_TYPE:-flux}
 NUM_GPUS=8
 

@@ -67,12 +67,21 @@ async def send_heartbeat():
             port = int(os.getenv("PORT", "8765"))
             url = f"http://{public_ip}:{port}"
             service_type = os.getenv("SERVICE_TYPE", "flux")  # Get service type from environment variable
+            
+            logger.info(f"Attempting to register heartbeat with URL: {url}")
+            
             async with aiohttp.ClientSession() as session:
                 async with session.post('https://image.pollinations.ai/register', json={'url': url, 'type': service_type}) as response:
                     if response.status == 200:
                         logger.info(f"Heartbeat sent successfully. URL: {url}")
                     else:
                         logger.error(f"Failed to send heartbeat. Status code: {response.status}")
+                        # Log response content for debugging
+                        try:
+                            response_text = await response.text()
+                            logger.error(f"Response content: {response_text}")
+                        except:
+                            pass
         except Exception as e:
             logger.error(f"Error sending heartbeat: {str(e)}")
 
@@ -89,33 +98,21 @@ async def periodic_heartbeat():
             logger.error(f"Error in periodic heartbeat: {str(e)}")
             await asyncio.sleep(5)  # Wait a bit before retrying
 
-def find_nearest_valid_dimensions(width: float, height: float) -> tuple[int, int]:
-    """Find the nearest dimensions that are multiples of 8 and their product is divisible by 65536."""
-    start_w = round(width)
-    start_h = round(height)
+def scale_to_max_pixels(width: int, height: int, max_pixels: int = 512 * 512) -> tuple[int, int]:
+    """Scale dimensions down proportionally if they exceed max_pixels while maintaining aspect ratio."""
+    current_pixels = width * height
     
-    def is_valid(w: int, h: int) -> bool:
-        return w % 8 == 0 and h % 8 == 0 and (w * h) % 65536 == 0
+    if current_pixels <= max_pixels:
+        return width, height
     
-    # Find nearest multiple of 8 for each dimension
-    nearest_w = round(start_w / 8) * 8
-    nearest_h = round(start_h / 8) * 8
+    # Calculate scaling factor to fit within max_pixels
+    scale_factor = (max_pixels / current_pixels) ** 0.5
     
-    # Search in a spiral pattern from the nearest multiples of 8
-    offset = 0
-    while offset < 100:  # Limit search to reasonable range
-        for w in range(nearest_w - offset * 8, nearest_w + offset * 8 + 1, 8):
-            if w <= 0:
-                continue
-            for h in range(nearest_h - offset * 8, nearest_h + offset * 8 + 1, 8):
-                if h <= 0:
-                    continue
-                if is_valid(w, h):
-                    return w, h
-        offset += 1
+    # Apply scaling and round to integers
+    scaled_width = int(width * scale_factor)
+    scaled_height = int(height * scale_factor)
     
-    # If no valid dimensions found, return the nearest multiples of 8
-    return nearest_w, nearest_h
+    return scaled_width, scaled_height
 
 # Import the real safety checker
 from safety_checker.censor import check_safety
@@ -189,10 +186,14 @@ async def generate(request: ImageRequest):
     seed = request.seed if request.seed is not None else int.from_bytes(os.urandom(2), "big")
     print(f"Using seed: {seed}")
     
-    # Find nearest valid dimensions
-    width, height = find_nearest_valid_dimensions(request.width, request.height)
-    print(f"Original dimensions: {request.width}x{request.height}")
-    print(f"Adjusted dimensions: {width}x{height}")
+    # Scale down if needed to fit within 512x512 pixel limit
+    width, height = scale_to_max_pixels(request.width, request.height)
+    original_pixels = request.width * request.height
+    final_pixels = width * height
+    print(f"Original dimensions: {request.width}x{request.height} ({original_pixels:,} pixels)")
+    print(f"Final dimensions: {width}x{height} ({final_pixels:,} pixels)")
+    if original_pixels > 512 * 512:
+        print(f"Scaled down from {original_pixels:,} to {final_pixels:,} pixels (max: {512*512:,})")
 
     try:
         # Generate image using our Flux Schnell FP8 implementation
